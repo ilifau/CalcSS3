@@ -4,6 +4,7 @@
 	var calcSS3 = document.querySelector('.calc-main'),
 		// display things
 		display = calcSS3.querySelector('.calc-display span'),
+		logline = calcSS3.querySelector('.calc-log'),
 		radDeg = calcSS3.querySelector('.calc-rad'),
 		smallerButton = calcSS3.querySelector('.calc-smaller'),
 		hold = calcSS3.querySelector('.calc-hold'),
@@ -11,7 +12,11 @@
 		helpButton = calcSS3.querySelector('.calc-info'),
 		secondKeySet = [].slice.call(calcSS3.querySelector('.calc-left').children, 12, 20),
 		hiddenCopy = calcSS3.querySelector('textarea'),
-
+		// fau: keep original Deg/Rad toggle instead specific buttons
+		//degButton = calcSS3.querySelector('.deg'),
+		//radButton = calcSS3.querySelector('.rad'),
+		// fau.
+		isError,
 		pressedKey,
 		frozenKey, // active calculation keys
 		secondActive = false, // 2nd key active?
@@ -52,6 +57,8 @@
 	Calculator.prototype.calc = function(key, val) {
 		var rank = this.rank;
 
+//                console.log(key, val);
+
 		if (key === '%') {
 			this.curr = 'funk';
 			return (this.stack[0] ? this.stack[this.num - 1][0] / 100 * val : val / 100) + '';
@@ -64,7 +71,7 @@
 		}
 		if (key === '=' && !this.stack[0] && this.curr && this.buff[1]) { // repeating '='
 			return (this.buff[1] === 'yx' ? Math.pow(val, this.buff[0]) : this.buff[1] === 'x√y' ?
-				Math.pow(val, 1 / this.buff[0]) : [1] === 'EE' ? val * Math.pow(10, this.buff[0]) :
+				/*Math.pow(val, 1 / this.buff[0])*/ nthroot(val, this.buff[0]) : [1] === 'EE' ? val * Math.pow(10, this.buff[0]) :
 				eval('(' + val + ')' + this.buff[1] + '(' + this.buff[0] + ')')) + '';
 		}
 		if (!this.stack[0] && key !== '=') { // first filling
@@ -83,7 +90,7 @@
 		if (rank[key] <= rank[this.stack[this.num - 1][1]]) {
 			this.stack[this.num - 1] = [
 				this.stack[this.num - 1][1] === 'yx' ? Math.pow(this.stack[this.num - 1][0], val) :
-				this.stack[this.num - 1][1] === 'x√y' ? Math.pow(this.stack[this.num - 1][0], 1 / val) :
+				this.stack[this.num - 1][1] === 'x√y' ?/* Math.pow(this.stack[this.num - 1][0], 1 / val)*/ nthroot(this.stack[this.num - 1][0], val) :
 				this.stack[this.num - 1][1] === 'EE' ? this.stack[this.num - 1][0] * Math.pow(10, val) :
 					eval('(' + this.stack[this.num - 1][0] + ')' + this.stack[this.num - 1][1] + '(' + val + ')'),
 				key
@@ -116,25 +123,31 @@
 
 	// ---------- INIT... ---------- //
 
-	// hiddenCopy.focus(); // for Chrome extention only
+	 hiddenCopy.focus(); // for Chrome extention only
 
 	// colloect all keys...
+	// fau: keep the children structure
 	for (var k = 2; k--; ) {
 		for (var l = calcSS3.children[k + 1], m = l.children, n = m.length; n--; ) {
-			keyBoard[l.children[n].textContent.replace(/\s*/g, '')] = l.children[n];
+			var _key = getKeyText(l.children[n]);
+			if(_key.length>0)
+				keyBoard[_key] = l.children[n];
 		}
 	}
+
 	keyBoard['C'] = keyBoard['AC'];
 	keyBoard['Rad'] = keyBoard['Deg'];
 	for (var m = secondLayer[0], n = m.length; n--; ) {
 		keyBoard[secondLayer[1][n].replace(/<\/*\w+>/g, '')] = keyBoard[m[n]];
 	}
+	// fau.
 	keyBoard['2x'] = keyBoard['ex'];
 
 
 	calculator[0] = new Calculator();
 	
 	// recover after reload or crash...
+	/*
 	(function(localStorage) {
 		if (!localStorage || !localStorage['resBuffer']) {
 			return; // for the very first run or after fatal crash
@@ -168,12 +181,14 @@
 			}
 		}
 	})(window.localStorage);
+   */
 
 	// ---------------- event listeners keys ---------------- //
 
 	document.addEventListener('keypress', function(e) {
 		var key = e.which,
-			holdKey = hold.textContent,
+			holdKey = getKeyText(hold),
+//			holdKey = hold.textContent,
 			keyMatch = (',|.|-|–|/|÷|*|×|#|+/–|x|x!|E|EE|e|ex| |2nd|r|x√y|R|√|p|π|^|yx|\'|yx|"|yx|m|mr|v|mc|b|m+|n|m-|' +
 				's|sin|c|cos|t|tan|S|sin-1|C|cos-1|T|tan-1|d|Deg|°|Deg|l|ln|L|log|\\|1/x|X|2x').split('|'),
 			keyMatchHold = ('sin|sinh|cos|cosh|tan|tanh|m-|Rand|Deg|Rand|sin-1|sinh-1|cos-1|cosh-1|tan-1|tanh-1|' +
@@ -194,7 +209,7 @@
 				}
 			hold.textContent = '';
 		}
-		if ((key === 'h' || key === 'H') && !holdKey) hold.textContent = 'hold';
+		if ((key === 'h' || key === 'H') && !holdKey) hold.textContent = 'Hold';
 		if (key === 'G' && holdKey) switchGrouping(true);
 		if (!keyBoard[key]) return false;
 		if ((key.match(/-1$|log2$|2x$/) && !secondActive) || (key.match(/h$|n$|cos$|ex$/) && secondActive)) {
@@ -206,42 +221,47 @@
 	}, false);
 
 	document.addEventListener('keydown', function(e) {
-		var str = resBuffer.replace(/\s/g, ''),
-			strLen = str.split('').length - 1;
+		/*var str = resBuffer.replace(/\s/g, ''),
+			strLen = str.split('').length - 1;*/
 
 		toggleOptions();
 		if (e.which === 8 && calculator[brackets].curr !== true &&
-				calculator[brackets].curr !== 'funk' && str !== '0') {
+			calculator[brackets].curr !== 'funk' /*&& str !== '0'*/) {
 			e.preventDefault();
+			backButton();
+			/*
 			while (buffStr.length && !keyBoard[buffStr[buffStr.length - 1]]) { // bull shit key(s)
-				buffStr.pop();
+				buffStr.pop(); renderHistory("back");
 			}
 			if (buffStr[buffStr.length - 1] === '+/–') {
 				doKey('+/–', true);
-				buffStr.pop();
+				buffStr.pop(); renderHistory("back");
 			} // +/-
 			else if (resBuffer.match(/\-\d$/) || resBuffer.match(/^\d$/)) {
-				buffStr.pop();
+				buffStr.pop(); renderHistory("back");
 				doKey('C', true);
 				render('0');
 			} else {
 				render(str.substring(0, strLen), true);
 			}
-			buffStr.pop();
+			buffStr.pop(); renderHistory("back");
 			if (buffStr[buffStr.length - 1] === '.') {
 				render(str.substring(0, strLen - 1));
-				buffStr.pop()
+				buffStr.pop();  renderHistory("back");
 			}
+			*/
 		}
 		if (e.which === 220) {
 			keyDown(false, keyBoard['xy']);
 		}
 		if (e.which === 46) {
 			keyDown(false, keyBoard['AC']);
-			doKey(keyBoard['AC'].textContent, true);
+//			doKey(keyBoard['AC'].textContent, true);
+			doKey(getKeyText(keyBoard['AC']), true);
 		}
 		if (e.which === 9) {
-			toggleCalc(true);
+			// UK: Deactivate small version --> No TOGGLE ;-)
+			//toggleCalc(true);
 			e.preventDefault();
 		}
 	}, false);
@@ -254,7 +274,9 @@
 	document.body.addEventListener('paste', function(e) {
 		render(parseFloat(e.clipboardData.getData("Text") + '') + '');
 		calculator[brackets].curr = true;
+		// fau: keep original AC toggle
 		keyBoard['AC'].children[0].firstChild.data = 'C';
+		// fau.
 		if (frozenKey) freezeKey(frozenKey, true);
 		e.preventDefault();
 	}, false);
@@ -275,23 +297,62 @@
 		return false;
 	}
 
+	/*************** FW: Focus fix ***************/
+
+		var refreshFocus = function(e) {
+			hiddenCopy.focus();
+			return false;
+		};
+
+		// ... unfortunately, Itembuilder-DIVs don't have class names or IDs.
+		// So we have to fetch all of them into an array and look for the drag-drop container, which is on index 64 :-)
+
+		window.onload = function(){
+			var divs = window.parent.document.getElementsByTagName("div");
+			//console.log(divs, divs.length);
+			if(divs && divs.length > 20){
+				if(typeof divs[divs.length-19] != "undefined"){
+					divs[divs.length-19].addEventListener('mouseup', refreshFocus, false);
+				}
+			}
+		};
+
+
+		document.body.addEventListener('mouseover', refreshFocus, false);
+
+		hiddenCopy.addEventListener('blur', function(e) {
+			calcSS3.classList.add('disabled');
+			return false;
+		}, false);
+
+		hiddenCopy.addEventListener('focus', function(e) {
+			calcSS3.classList.remove('disabled');
+			return false;
+		}, false);
+
+
+	/*************** //Focus fix ***************/
+
 	document.addEventListener('mouseup', function(e) {
+		//document.body.focus();
+		hiddenCopy.focus();
 		var event = e || window.event,
 			target = getTargetKey(event.target),
-			keyText = target.textContent.replace(/\s*/g, ''),
+//			keyText = target.textContent.replace(/\s*/g, ''),
+			keyText = getKeyText(target),
 			key = keyBoard[keyText];
-
+//                console.log(getTargetKey(event.target).textContent, keyText, keyText.length,  getTargetKey(event.target).textContent.length);
 		if (event.target === helpButton) {
-			window.location = 'http://dematte.at/calculator#usage';
+			//window.location = 'http://dematte.at/calculator#usage';
 		}
 		if (event.target === smallerButton) {
-			toggleCalc(true);
+			//toggleCalc(true);
 		}
 		if (event.target === lnButton) {
-			switchGrouping(true);
+			//switchGrouping(true);
 		}
 		if (event.target !== lnButton) {
-			toggleOptions();
+			//toggleOptions();
 		}
 		document.removeEventListener('mouseout', keyUp, false);
 		document.removeEventListener('mouseover', keyDown, false);
@@ -305,21 +366,93 @@
 	}, false);
 
 	display.parentElement.addEventListener('dblclick', function() {
-		if (!helpButton.active) {
+		/*if (!helpButton.active) {
 			toggleCalc(true);
-		}
+		}*/
+
+
 	}, false);
 
 	helpButton.addEventListener('mouseover', function() {
 		toggleOptions(true);
 	}, false);
 
+	// fau: omit events for Deg/Rad radio buttons
+	// var fnDegRadToggle = function (e) {
+	// 	doKey(e.target.id);
+	// };
+	//
+	// degButton.addEventListener('click', fnDegRadToggle, false);
+	// radButton.addEventListener('click', fnDegRadToggle, false);
+	// fau.
+
+	function getKeyText(n){
+		var _node = n;
+		if(_node && typeof _node.getAttribute("key") === "string"){
+			return _node.getAttribute("key").trim();
+		}
+		else
+			return _node.textContent.replace(/\s*/g, '').trim();
+	}
+
 	// ------------------- event related functions ------------------ //
+
+
+	function backButton(){
+
+			var str = resBuffer.replace(/\s/g, ''),
+			strLen = str.split('').length - 1;
+                        var lastKey = buffStr[buffStr.length - 1];
+
+//                        console.log("back1", resBuffer, buffStr);
+
+			while (buffStr.length && !keyBoard[buffStr[buffStr.length - 1]]) { //
+				buffStr.pop(); renderHistory("back");
+			}
+
+			if (lastKey === '+/–') {
+				doKey('+/–', true);
+				buffStr.pop(); renderHistory("back");
+			} // +/-
+
+                        else if (brackets && lastKey === "("){
+                            calculator.splice(brackets--, 1);
+                        }
+
+			if (resBuffer.match(/\-\d$/) || resBuffer.match(/^\d$/)) {
+
+				//display previous operand, if there was one
+				if(calculator[brackets].stack[calculator[brackets].num-1]){
+					var stack = calculator[brackets].stack[calculator[brackets].num-1];
+					calculator[brackets].stack.splice(--calculator[brackets].num, 1);
+					calculator[brackets].buff = [false,false];
+					render(calculator[brackets].calc(stack[1],stack[0]));
+					buffStr.pop(); renderHistory("back");
+				}
+				else{
+				//doKey('C', true);
+				render('0');
+					buffStr.pop(); renderHistory("back");
+				}
+
+			} else {
+				render(str.substring(0, strLen), true);
+			buffStr.pop(); renderHistory("back");
+			}
+//
+			if (buffStr[buffStr.length - 1] === '.') {
+				render(str.substring(0, strLen - 1));
+				buffStr.pop();  renderHistory("back");
+			}
+//                        console.log(buffStr);
+//			console.log("back2", JSON.stringify(calculator[brackets].stack), JSON.stringify(calculator[brackets].buff), buffStr);
+	}
 
 	function keyDown (e, obj) { // works for mouse and key
 		var event = e || window.event,
 			target = obj || getTargetKey(event.target),
-			keyText = target.textContent.replace(/\s*/g, ''),
+			keyText = getKeyText(target),
+//			keyText = target.textContent.replace(/\s*/g, ''),
 			key = keyBoard[keyText];
 
 		if (key) {
@@ -356,9 +489,10 @@
 	}
 
 	function saveState() {
-		for (var n = sav.length; n--;) {
-			localStorage[sav[n]] = eval(sav[n]); // oooohhhh, outch...
-		}
+
+		/*for (var n = sav.length; n--;) {
+				[sav[n]] = eval(sav[n]); // oooohhhh, outch...
+		}*/
 	}
 
 	function toggleOptions(doIt) {
@@ -389,16 +523,21 @@
 	}
 
 	function render(val, inp) {
+                val+='';
 		var regx = /(\d+)(\d{3})/,
 			hasComma = val.match(/\./),
 			tmp,
 			valAbs = Math.abs(+val),
-			fontSize = 45,
+			fontSize = 40,
 			displayStyle = display.style,
 			displayParentStyle = display.parentNode.style;
 
 		if (val.match(/NaN|Inf|Error/)) {
-			tmp = 'Error';
+			tmp = 'Fehler';
+			resBuffer = "Error";
+			isError = true;
+			//doKey("AC");
+			//return 'Fehler';
 		} else {
 			resBuffer = val;
 			if (valAbs >= 1e+16) {
@@ -421,9 +560,9 @@
 					tmp[1] = tmp[1].substr(2).replace(/0+$/, '');
 				}
 			}
-			while (regx.test(tmp[0])) {
-				tmp[0] = tmp[0].replace(regx, '$1' + ' ' + '$2');
-			}
+			/*while (regx.test(tmp[0])) {
+				tmp[0] = tmp[0].replace(regx, '$1' + "<span style=\"font-size: 20px:\">&nbsp;</span>" + '$2');
+			}*/
 			tmp = tmp[0] + ((tmp[1] || hasComma) ? '.' + tmp[1] : '').
 				replace('.undefined', '').
 				replace(inp ? '' : /\.$/, '') + (tmp[2] && tmp[2][1] ? 'e' + tmp[2][1] : '');
@@ -435,16 +574,25 @@
 		}
 		display.firstChild.data = tmp;
 		// for common use: get values of pixels dynamically to stay free from design (...but outside this function)
-		displayStyle.fontSize = '45px';
-		displayParentStyle.lineHeight = '61px';
+		// fau: reduce line height to keep space for logline
+		displayStyle.fontSize = '40px';
+		displayParentStyle.lineHeight = '50px';
 		while (display.offsetWidth > display.parentNode.offsetWidth - (bigger ? 40 : 30)) {
 			displayStyle.fontSize = (fontSize--) + 'px';
-			displayParentStyle.lineHeight = (fontSize + 18) + 'px'
+			displayParentStyle.lineHeight = (fontSize + 10) + 'px'
 		}
+		// fau.
+		return tmp;
 	}
 
 	function doKey(text, alt) {
+
 		var key = keyBoard[text]; // text = key.textContent.replace(/\s*/g, '');
+
+		if(isError && text !== "AC" && text !== "C")
+			return;
+
+		isError = false;
 
 		if (text === '2nd') {
 			secondActive = secondActive ? null : true;
@@ -456,28 +604,37 @@
 			freezeKey(key);
 		} else if (text.match(/^[\d|\.|π]$/)) {
 			freezeKey(key, true);
+			// fau: keep original AC toggle
 			keyBoard['AC'].children[0].firstChild.data = 'C';
+			// fau.
 		} else if (text === 'C') {
+			// fau: keep original AC toggle
 			key.children[0].firstChild.data = 'AC';
+			// fau.
 			if (frozenKey) freezeKey(frozenKey);
 		} else if (text.match(/AC|=/)) {
 			if (bracketKey) freezeKey(bracketKey, 2);
 			freezeKey(key, true);
 			frozenKey = null
 		} else if (text.match(/Deg|Rad/)) {
+			// fau: keep original Deg/Rad toggle
 			radDeg.firstChild.data = deg ? 'Rad' : 'Deg';
 			key.children[0].firstChild.data = deg ? 'Deg' : 'Rad';
 			deg = !deg
+			// fau.
 		} else if (text === '(') {
 			bracketKey = key;
 			freezeKey(bracketKey, 2).className += ' calc-active';
 		} else if (text === ')' && brackets === 1 && bracketKey) {
 			freezeKey(bracketKey, 2);
 		} else if (text.match(/^mr$/) && memory) {
+			// fau: keep original AC toggle
 			keyBoard['AC'].children[0].firstChild.data = 'C';
+			// fau.
 		}
 
 		evalKey(text);
+//		console.log("evalKey", calculator, JSON.stringify(calculator[brackets].stack), JSON.stringify(calculator[brackets].buff), buffStr);
 
 		if (!alt) {
 			keyUp();
@@ -485,12 +642,39 @@
 		if (text.match(/^m[c|+|-]/)) {
 			freezeKey(keyBoard['mr'], 2).className += (memory ? ' calc-active' : '');
 		}
+		//console.log(resBuffer);
 	}
 
 	function evalKey(key) {
+
 		var dispVal = resBuffer.replace(/\s/g, '').replace(/Error|∞|-∞/, '0') + '',
 			_PI = Math.PI,
 			lastKey;
+
+		if(key == '←'){
+			/*var str = resBuffer.replace(/\s/g, ''),
+					strLen = str.split('').length - 1;	*/
+			var _lastKey = buffStr[buffStr.length - 1];
+			if (
+                                (
+                                   calculator[brackets].curr !== true
+                                   && calculator[brackets].curr !== 'funk' /*&& str !== '0'*/
+                                   && !_lastKey.match(/^[+|–|÷|×|yx|x√y|E|^C]+$/)
+                                )
+                                || _lastKey === "("
+                        ) {
+				backButton();
+			}
+			return;
+		}
+
+		if(key == "mr" && memory){
+			let _mem = memory + '';
+			for(let i = 0; i < _mem.length; i++){
+				evalKey(_mem[i]);
+			}
+			return;
+		}
 
 		if (!key.match(/2nd|Deg|Rad|m/)) { // +/- issue
 			buffStr.push(key);
@@ -499,13 +683,40 @@
 				buffStr = [key];
 			}
 		}
+
 		lastKey = buffStr[buffStr.length - 2];
-		if (key.match(/^[\d|\.]$/) || key === '+/–') {
-			if (calculator[brackets].curr && key !== '+/–' || (key === '+/–' &&
-					lastKey && lastKey.match(/^[+|–|÷|×|yx|x√y|E|^C]+$/))) {
+		var regex0 =  new RegExp ('(sin-1|cos-1|tan-1|sinh|cosh|tanh|sinh-1|cosh-1|tanh-1|sin|cos|tan|ln|log|log2|3√y?|2√y?|1/x|ex|e\^|x2|x3)');
+
+                if(key === "(" && lastKey && (!isNaN(lastKey) || lastKey === "x√y" || lastKey.match(regex0) ) ){
+                        render(calculator[brackets].init(key));
+			hold.textContent = '';
+                        dispVal = '0';
+                        renderHistory("AC", "0");
+                        calculator[brackets].curr = false;
+                }
+
+		else if (key.match(/^[\d|\.|π]$/) || key === '+/–') {
+//                        console.log(key,lastKey, key === "π" && !isNaN(lastKey));
+
+                        if( (lastKey && lastKey.match(regex0)) ||       //also see @renderenderHistory() => /^=-?\d/
+                            (!isNaN(lastKey) && key === "π")
+                        ){
+				dispVal = '0';
+                                renderHistory("AC", "0");
+				calculator[brackets].curr = false;
+                        }
+			else if (calculator[brackets].curr && key !== '+/–') {
 				dispVal = '0';
 				calculator[brackets].curr = false;
 			}
+
+                        else if( key === '+/–' && lastKey && lastKey.match(/^[+|–|÷|×|yx|x√y|E|^C]+$/) ){
+                            render("Error");
+                            resBuffer = "0";
+                            renderHistory("AC", "0");
+                            return;
+                        }
+
 			if ((Math.abs(+(dispVal + key)) > (bigger ? 1e15 : 1e9) ||
 					dispVal.replace(/^-/, '').length > 15 ||
 					(dispVal.replace('-', '').replace(/\./g, '').length > (bigger ? 14 : 8)) ||
@@ -515,14 +726,22 @@
 			} else if (key === '+/–') {
 				render(!(dispVal.replace(/e[\+|\-]/, '')).match('-') ?
 					'-' + dispVal : dispVal.replace(/^-/, ''), '+/–');
+
 			} else {
-				render((dispVal + key).replace(/^(-)*?0(\d)$/, '$1' + '$2'), true);
+				var tmp = (key == "π") ? _PI + '' : dispVal + key;
+				render((tmp).replace(/^(-)*?0(\d)$/, '$1' + '$2'), true);
 			}
 		} else if (key.match(/^C|AC/)) {
+                        calculator = [new Calculator()];
+                        brackets = 0;
 			render(calculator[brackets].init(key));
 			hold.textContent = '';
 		} else if (key.match(/^[+|–|÷|×|-|\/|*|yx|x√y|%|E]+$/) && key !== '√') {
-			render(calculator[brackets].calc(key, dispVal));
+			let val = dispVal;
+			if(lastKey == "(" && key.match(/^[+|–|×|-|*]+$/))
+				val = 0;
+			render(calculator[brackets].calc(key, val));
+//                        console.log("post-calc", JSON.stringify(calculator[brackets].stack), JSON.stringify(calculator[brackets].buff), buffStr);
 		} else {
 			if (brackets > -1) {
 				calculator[brackets].curr = 'funk';
@@ -543,6 +762,7 @@
 					if (brackets) {
 						render(calculator[brackets--].calc('=', dispVal));
 					}
+
 					if (brackets > -1) {
 						calculator[brackets].curr = false;
 					}
@@ -556,9 +776,6 @@
 				case 'm-':
 					memory -= +dispVal;
 					break;
-				case 'mr':
-					render(memory + '');
-					break;
 				case '1/x':
 					render((1 / dispVal) + '');
 					break;
@@ -570,12 +787,17 @@
 					break;
 				case 'x!':
 					render((function fak(n) {
-						return n < 0 || n > 170 ? NaN : n <= 1 ? 1 : n * fak(n - 1)
-					})(Math.round(+dispVal)) + '');
+						//console.log(n, isInt(n));*
+						return n < 0 || n > 170 || !isInt(n) ? NaN : n <= 1 ? 1 : n * fak(n - 1)
+					})(/*Math.round(+dispVal)*/dispVal) + '');
 					break;
 				case '√':
+				case '2√y':
 					render(Math.sqrt(dispVal) + '');
 					break;
+				case '3√y':
+					 render(String(nthroot(dispVal, 3)));
+					 break;
 				case 'log':
 					render(Math.log(dispVal) / Math.log(10) + '');
 					break;
@@ -642,5 +864,337 @@
 					break;
 			}
 		}
+
+		//console.log("buffStr: " + buffStr);
+
+		if(resBuffer == "Error"){
+			resBuffer = "0";
+			renderHistory("AC");
+			return;
+		}
+
+		var _dispVal = resBuffer.replace(/\s/g, '').replace(/Error|∞|-∞/, '0') + '';
+		renderHistory(key, _dispVal);
+
+		logline.scrollLeft = logline.scrollWidth;
 	}
+
+	function nthroot(x, n) {
+	  try {
+		var negate = n % 2 == 1 && x < 0;
+		if(negate)
+		  x = -x;
+		var possible = Math.pow(x, 1 / n);
+		n = Math.pow(possible, n);
+		if(Math.abs(x - n) < 1 && (x > 0 == n > 0))
+		  return negate ? -possible : possible;
+	  } catch(e){}
+	}
+
+
+	function isInt(n) {
+		return n % 1 === 0;
+	}
+
+	function doLog(expr){
+		if(window.top !== window.self ){
+			var url = window.location.href;
+			var arr = url.split("/");
+			var domain = arr[0] + "//" + arr[2];
+			//if(arr[2].indexOf("www") < 0)
+			//	domain = arr[0] + "//www." + arr[2];
+		    window.top.postMessage(JSON.stringify({type: "calculator", data: expr}), domain);
+		}
+	}
+
+
+	function renderHistory(key, dispVal){
+
+		var tmp = "";
+		logline.textContent = "";
+                if(typeof dispVal === "undefined")
+                    dispVal = display.firstChild.data;
+
+		if ( typeof renderHistory.logstr === 'undefined' || key.match(/^C|AC|=/) )
+			renderHistory.logstr = ["0"];
+
+		if ( typeof renderHistory.dispval === 'undefined' || key.match(/^C|AC|=/) )
+			renderHistory.dispval = ["0"];
+
+
+		var len = renderHistory.logstr.length;
+		var prevKey = (len > 0) ? renderHistory.logstr[len-1] : null;
+		var prevKey2 = (len > 1) ? renderHistory.logstr[len-2] : null;
+		var append = true;
+
+//                console.log(renderHistory.logstr);
+
+
+		if( (!isNaN(key) || key === "π" || key === "(") && renderHistory.logstr.length === 1 && renderHistory.logstr[0] === "0"){
+			renderHistory.logstr[0] = key;
+                        renderHistory.dispval[0] = key;
+			append = false;
+			prevKey = null;
+		}
+
+		if(prevKey != null){
+
+			//...Operatoren nicht mehrfach in Folge loggen / letzer ersetzt vorigen
+			if(prevKey.match(/^(\+|–|÷|×|yx|x√y|E)+$/)){
+				if(key.match(/^(\+|–|÷|×|yx|x√y|E)+$/)){
+				renderHistory.logstr[len-1] = key;
+				append = false;
+			}
+			}
+
+			else if(key == "0" && dispVal == key && prevKey == key){
+				append = false;
+			}
+
+			else if(key == "back"){
+				append = false;
+				if(prevKey.match(/^(\.|\d|\(|\))/) &&
+				   renderHistory.logstr.length>1 || renderHistory.logstr[0] !== "0"
+				)
+				{
+					renderHistory.logstr.pop();
+					renderHistory.dispval.pop();
+
+					if(renderHistory.logstr.length == 0){
+						renderHistory.logstr = ["0"];
+						renderHistory.dispval = ["0"];
+				}
+
+
+//					console.log(prevKey2, renderHistory.dispval, renderHistory.logstr);
+			}
+			}
+		}
+
+
+		if (append && !key.match(/2nd|Deg|Rad|m|C|AC|back/)){
+			renderHistory.logstr.push(key);
+			if(key=="π" || (len > 0 && renderHistory.dispval[len-1] === "-π" && key === "+/–")){
+				renderHistory.dispval.push("π");
+			}
+			else if(renderHistory.dispval[len-1] === "π" && key === "+/–"){
+				renderHistory.dispval.push("-π");
+			}
+			else if(key !== "="){
+				renderHistory.dispval.push(dispVal);
+			}
+		}
+//		console.log(prevKey2, renderHistory.dispval, renderHistory.logstr);
+
+		if(renderHistory.logstr.length){
+
+			var _brackets = 0;
+
+			for(var i=0; i<renderHistory.logstr.length; i++){
+
+					var _key = renderHistory.logstr[i];
+					var _prevKey = i>0 ? renderHistory.logstr[i-1] : null;
+					var _nextKey = i<renderHistory.logstr.length-1 ? renderHistory.logstr[i+1] : null;
+
+					if (_key == "=" && typeof dispVal != "undefined"){
+							tmp = dispVal;
+							renderHistory.logstr = ["="+dispVal];
+                            renderHistory.dispval = [dispVal];
+							//renderHistory.logstr = [dispVal];
+							break;
+					}
+
+					else if(_key.match(/^=-?\d/)){  //also see @evalKey()
+						if(_nextKey != null && (!isNaN(_nextKey) || _nextKey === "π") ) {
+							tmp = _nextKey;
+							renderHistory.logstr = [_nextKey];
+                                                        renderHistory.dispval = [_nextKey];
+							break;
+						}
+						else
+						{
+							tmp = _key.substr(1);
+							renderHistory.logstr[i] = tmp;
+						}
+					}
+
+					else if(_key == "π"){
+//                                                console.log(_nextKey != null && !isNaN(_nextKey));
+						if(_nextKey != null && !isNaN(_nextKey)){
+							tmp = _nextKey;
+							renderHistory.logstr = [_nextKey];
+							break;
+						}
+//                                                else if(!isNaN(_prevKey)){
+//                                                    renderHistory.logstr = ["π"];
+//                                                    break;
+//                                                }
+
+						else
+							tmp += "π";
+					}
+
+					else if(_key == "("){
+
+
+						_brackets++;
+						tmp += "(";
+					}
+
+					else if(_key == ")"){
+						if(_brackets>0){
+							tmp += ")";
+							_brackets--;
+						}
+						else{
+							continue;
+						}
+					}
+
+
+					else if(_key == "÷"){
+						tmp += "/";
+					}
+
+					else if(_key == "x3"){
+						tmp += "^3";
+					}
+
+					else if(_key == "x2"){
+						tmp += "^2";
+					}
+
+					else if(_key == "yx"){
+						tmp += "^";
+					}
+
+					else if(_key == "x√y"){
+                                                var _operand = "";
+                                                if(_nextKey !== null){
+                                                    var _value = _nextKey;
+//                                                    var _i = i;
+                                                    while(_value != null && !isNaN(_value)){
+                                                        i++;
+                                                        _operand += _value;
+                                                        _value = i<renderHistory.logstr.length-1 ? renderHistory.logstr[i+1] : null;
+                                                    }
+					}
+
+                                                var _root = "";
+                                                var regex =  new RegExp ("(-?[0-9π!.]+$|\\([^)]+\\))$");
+						var match = tmp.match(regex);
+                                                if(match !== null){
+                                                    _root = match[0];
+                                                }
+
+                                                if(_operand.length === 0)
+                                                    _operand = "y";
+
+                                                tmp = tmp.substr(0, tmp.length - _root.length);
+                                                tmp += _operand+"√("+_root+")";
+					}
+
+
+
+					else if(_key == "back"){
+						tmp += "";
+					}
+
+					else if(_key == "x!"){
+						tmp += "!";
+						let regex =  new RegExp ("(-?[0-9π!.]+|\\(.+\\))!", "g");
+						let match = tmp.match(regex);
+						if(match != null)
+							renderHistory.dispval[i] = match[0];
+					}
+
+					else if(_key == "+/–"){
+
+
+						var _dispVal = renderHistory.dispval[i].toString();
+						var _dispVal_0 = (i>0) ? renderHistory.dispval[i-1].toString() : false;
+
+//                                              console.log(renderHistory.dispval,_dispVal,_dispVal_0, i);
+//						console.log(renderHistory.logstr);
+
+						if(_dispVal_0 !== false){
+							var _pos = tmp.lastIndexOf(_dispVal_0);
+							if(_pos >= 0){
+								var tmp_1 = tmp.substr(0, _pos);
+								var tmp_2 = tmp.substr(_pos + _dispVal_0.length);
+								tmp = tmp_1 + _dispVal + tmp_2;
+							}
+						}
+					}
+
+
+					else{
+
+				//fn(x)
+
+                    var regstr = "sin-1|cos-1|tan-1|sinh|cosh|tanh|sinh-1|cosh-1|tanh-1|sin|cos|tan|ln|log|log2|3√y?|2√y?|1/x|ex|e\\^";
+					var regex0 =  new RegExp ('('+regstr+')');
+
+					if(_key.match(regex0)){
+
+						if(_prevKey == null)
+							tmp = "0"+tmp;
+
+						var regex1 =  new RegExp ("(-?[0-9π!^.]+|\\([^)]+\\))([–+×\/]?)$");
+						if(_prevKey != null){
+							if(_prevKey == 'e^'){	// "^" causes problems, since it's part of the regex syntax and needs to be escaped
+								regex1 =  new RegExp ("(e\\^\\([^)]+\\))([–+×\/]?)$");
+							}
+							else if(_prevKey.match(regex0)){
+								regex1 =  new RegExp ("("+_prevKey+"\\([^)]+\\))([–+×\/]?)$");
+							}
+						}
+
+						tmp = tmp.replace(regex1,
+							function(str,p1,p2){
+								var ret = "";
+//                                                                console.log(p1,p2,p3);
+								if (_key === "3√y"){
+									ret = "3√("+p1+")";
+									renderHistory.logstr[i] = "3√";
+								}
+								else if(_key === "√" || _key === "2√y"){
+									ret = "2√("+p1+")";
+									renderHistory.logstr[i] = "2√";
+								}
+								else if (_key === "1/x"){
+									ret = "1/"+p1;
+								}
+								else if (_key === "ex"){
+									ret = "e^("+p1+")";
+									renderHistory.logstr[i] = "e^";
+								}
+								else{
+                                                                    ret = _key+"("+p1+")";
+								}
+
+//                                                                if(_prevKey !== null && _prevKey.match(/^(\+|–|÷|×)$/) ){
+                                                                if(p2.length>0){
+                                                                    ret = p1+p2+ret;
+								}
+
+								renderHistory.dispval[i] = ret;
+
+								return ret;
+							}
+						);
+					}
+
+                                            else
+                                                tmp += renderHistory.logstr[i];
+                                        }
+			}
+
+                        doLog(tmp);
+			logline.textContent = tmp;
+
+		}
+
+	}
+
 })(window);

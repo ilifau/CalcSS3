@@ -43,7 +43,7 @@
 		inset 0 -1px 2px rgba(255, 255, 255, 0.5),
 		inset 0  2px 3px rgba(  0,   0,   0, 0.40);
 	font-size: 45px;
-	line-height: 61px;
+	line-height: 50px;
 	text-align: right;
 	white-space: nowrap;
 	color: #333;
@@ -70,9 +70,18 @@
 }
 .calc-hold {
 	position: absolute;
+	bottom: 20px;
+	font-size: 14px;
+	line-height: 14px;
+	left: 11px;
+}
+.calc-log {
+	position: absolute;
 	right: 5px;
-	bottom: 1px;
-	font-size: 8px;
+	bottom: 5px;
+	width: 230px;
+	overflow: hidden;
+	font-size: 12px;
 	line-height: 13px;
 	color: #666;
 	height: 12px;
@@ -81,6 +90,7 @@
 /* ----- display helper buttons ----- */
 
 .calc-buttons {
+	display: none;
 	position: absolute;
 	top: 2px;
 	left: 2px;
