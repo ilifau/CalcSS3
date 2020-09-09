@@ -26,7 +26,9 @@
 		deg = false, // Deg mode or Rad
 		memory = 0,
 		resBuffer = '0',
-		bigger = false, // app size
+		// fau: enforce bigger view
+		bigger = true, // app size
+		// fau.
 		ln = 0,
 		buffStr = [],
 		sav = ['secondActive', 'deg', 'memory', 'buffStr', 'resBuffer'],

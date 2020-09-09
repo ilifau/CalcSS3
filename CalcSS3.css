@@ -90,22 +90,15 @@
 /* ----- display helper buttons ----- */
 
 .calc-buttons {
-	display: none;
 	position: absolute;
 	top: 2px;
 	left: 2px;
-	opacity: .35;
-	height: 14px;
-	width: 14px;
-	transition:
-		opacity 0.15s ease-in;
-}
-.calc-buttons:hover {
 	opacity: 0.75;
 	height: 100%;
 	width: 17px;
 }
 .calc-buttons div {
+	display:none;
 	position: absolute;
 	top: 1px;
 	height: 11px;
@@ -120,31 +113,8 @@
 	border-radius: 50%;
 	border: 1px solid #444;
 }
-.calc-buttons .calc-smaller {
-	opacity: 0;
-}
 .calc-buttons .calc-ln {
-	font-size: 17px;
-	line-height: 2px;
-	overflow: hidden;
-	opacity: 0;
-}
-.calc-buttons:hover div {
-	transition:
-		opacity 0.15s ease-in,
-		top 0.25s ease-out;
-}
-
-.calc-buttons:hover .calc-smaller {
-	top: 15px;
-	opacity: 0.75;
-}
-.calc-buttons:hover .calc-ln {
-	top: 29px;
-	opacity: 0.75;
-}
-.calc-buttons .calc-info:hover, .calc-buttons .calc-smaller:hover, .calc-buttons .calc-ln:hover {
-	opacity: 1;
+	display:none;
 }
 
 /* -------- key board -------- */
